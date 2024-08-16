@@ -80,7 +80,6 @@ Research-Paper-Writer/
 
 - google-generativeai
 - PyPDF2
-- arxiv
 - python-dotenv
 
 See `requirements.txt` for specific versions.
