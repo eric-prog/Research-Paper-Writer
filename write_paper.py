@@ -195,7 +195,6 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     1. A title
     2. A brief description of what should be covered
     3. Any specific technical details or algorithms to be discussed
-    4. Potential areas where citations might be needed
 
     Aim for 3-5 subsections for most sections, but for longer sections like Methodology or Implementation, you can go up to 7-10 subsections.
 
@@ -203,7 +202,7 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     The JSON should be parseable by Python's json.loads() function.
     Example format:
     [
-        {{"title": "Subsection 1", "description": "...", "technical_details": "...", "citation_areas": ["..."]}}
+        {{"title": "Subsection 1", "description": "...", "technical_details": "..."}}
     ]
     """
     response = get_response_from_llm(prompt, "You are an AI assistant creating a detailed paper outline.")
@@ -241,25 +240,6 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
     """
     return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.")
 
-def add_citations(section: str, context: str, citation_areas: List[str]) -> Tuple[str, str]:
-    prompt = f"""
-    Please find relevant citations and links, preferably from arXiv, that support the following section:
-
-    {section}
-
-    Based on this context:
-    {context}
-
-    Focus on these areas for citations:
-    {', '.join(citation_areas)}
-
-    Provide the citations in LaTeX format (e.g., \cite{{paperid}}) with a brief mention of how each cited paper relates to our work or supports our arguments.
-    """
-    cited_section = get_response_from_llm(prompt, "You are an AI assistant tasked with finding relevant citations.")
-
-    # Since we are no longer fetching papers from arXiv directly, we won't generate BibTeX entries here.
-    return cited_section, ""
-
 
 def refine_section(section_name: str, current_content: str, tips: str) -> str:
     prompt = f"""
@@ -273,7 +253,6 @@ def refine_section(section_name: str, current_content: str, tips: str) -> str:
     Pay particular attention to:
     - LaTeX syntax and formatting
     - Clarity and conciseness
-    - Proper use of citations (use \cite{{key}} for citations)
     - Logical flow of ideas
     - Technical accuracy and depth
 
@@ -313,7 +292,7 @@ def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
     
     return paper
 
-def perform_writeup(context: str, inspiration: str, template: str, example_learning: str) -> Tuple[Dict[str, str], str]:
+def perform_writeup(context: str, inspiration: str, template: str, example_learning: str) -> Dict[str, str]:
     code = parse_code(context)
     code_analysis = analyze_code_structure(code)
     sections = {
@@ -329,7 +308,6 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
     }
     
     paper = {}
-    all_bibtex_entries = []
     for section, tips in sections.items():
         print(f"Generating {section} section...")
         outline = generate_detailed_outline(section, context, code, code_analysis)
@@ -338,24 +316,16 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
             print(f"  Generating subsection: {subsection['title']}")
             part_content = generate_section_part(section, subsection, context, code, inspiration, tips, example_learning)
             section_content += f"\\subsection{{{subsection['title']}}}\n\n{part_content}\n\n"
-        
-        if section not in ["Title", "Abstract"]:
-            citation_areas = [', '.join(sub['citation_areas']) for sub in outline if 'citation_areas' in sub]
-            section_content, bibtex_entries = add_citations(section_content, context, citation_areas)
-            all_bibtex_entries.append(bibtex_entries)
-        
+
         paper[section] = refine_section(section, section_content, tips)
     
     paper = ensure_consistency(paper)
-    return paper, "\n\n".join(all_bibtex_entries)
+    return paper
 
-def compile_latex(paper: Dict[str, str], bibtex_entries: str, template: str, output_file: str):
+def compile_latex(paper: Dict[str, str], template: str, output_file: str):
     for section, content in paper.items():
         placeholder = f"%{section.upper()}_PLACEHOLDER"
         template = template.replace(placeholder, content)
-    
-    # Add bibtex entries to the template
-    template = template.replace("%BIBTEX_PLACEHOLDER", bibtex_entries)
     
     with open(output_file, 'w') as f:
         f.write(template)
@@ -372,8 +342,8 @@ def main():
     inspiration = read_pdf_inspiration(INSPIRATION_PDF_PATH)
     template = read_latex_template(LATEX_TEMPLATE_PATH)
     example_learning = learn_from_examples()
-    paper, bibtex_entries = perform_writeup(context, inspiration, template, example_learning)
-    compile_latex(paper, bibtex_entries, template, OUTPUT_PATH)
+    paper = perform_writeup(context, inspiration, template, example_learning)
+    compile_latex(paper, template, OUTPUT_PATH)
 
 if __name__ == "__main__":
     main()
