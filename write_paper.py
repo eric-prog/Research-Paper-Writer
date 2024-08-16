@@ -1,20 +1,36 @@
 import os
 import json
 import re
-import openai
+import google.generativeai as genai
 import PyPDF2
 import arxiv
 from typing import Dict, List, Tuple
+from dotenv import load_dotenv
 
-# Initialize OpenAI client
-client = openai.OpenAI()
+load_dotenv()
+
+# Configure Gemini API
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Gemini model configuration
+generation_config = {
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "top_k": 64,
+    "max_output_tokens": 8192,
+}
+
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    generation_config=generation_config,
+)
 
 # Hardcoded paths
-CONTEXT_PATH = "context.txt"
-INSPIRATION_PDF_PATH = "inspiration_paper.pdf"
-OUTPUT_PATH = "generated_paper.tex"
-LATEX_TEMPLATE_PATH = "paper_template.tex"
-EXAMPLE_PAPERS_DIR = "example_papers"
+CONTEXT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/context/context.txt"
+INSPIRATION_PDF_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers/1703.10593v7.pdf"
+OUTPUT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/output/paper.tex"
+LATEX_TEMPLATE_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/icml/example_paper.tex"
+EXAMPLE_PAPERS_DIR = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers"
 
 def read_context(file_path: str) -> str:
     with open(file_path, 'r') as f:
@@ -36,23 +52,16 @@ def parse_code(context: str) -> Dict[str, str]:
     sections = re.split(r'\n(?=def |class )', context)
     return {f"Section_{i}": section.strip() for i, section in enumerate(sections)}
 
-def get_response_from_llm(prompt: str, system_message: str, max_tokens: int = 2000) -> str:
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=max_tokens
-    )
-    return response.choices[0].message.content
+def get_response_from_llm(prompt: str, system_message: str) -> str:
+    chat = model.start_chat(history=[])
+    response = chat.send_message(f"{system_message}\n\n{prompt}")
+    return response.text
 
 def search_arxiv_papers(query: str, num_results: int = 5) -> List[Dict]:
     search = arxiv.Search(
-        query = query,
-        max_results = num_results,
-        sort_by = arxiv.SortCriterion.Relevance
+        query=query,
+        max_results=num_results,
+        sort_by=arxiv.SortCriterion.Relevance
     )
     
     results = []
@@ -108,7 +117,7 @@ def analyze_code_structure(code: Dict[str, str]) -> str:
     Identify key algorithms, data structures, and design patterns used.
     Highlight any notable or innovative aspects of the implementation.
     """
-    return get_response_from_llm(prompt, "You are an AI assistant analyzing code structure.", max_tokens=1000)
+    return get_response_from_llm(prompt, "You are an AI assistant analyzing code structure.")
 
 def generate_detailed_outline(section_name: str, context: str, code: Dict[str, str], code_analysis: str) -> List[Dict[str, str]]:
     prompt = f"""
@@ -127,8 +136,10 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     4. Potential areas where citations might be needed
 
     Aim for 3-5 subsections for most sections, but for longer sections like Methodology or Implementation, you can go up to 7-10 subsections.
+    
+    Provide the output as a JSON array of objects, each representing a subsection.
     """
-    response = get_response_from_llm(prompt, "You are an AI assistant creating a detailed paper outline.", max_tokens=2000)
+    response = get_response_from_llm(prompt, "You are an AI assistant creating a detailed paper outline.")
     return json.loads(response)
 
 def generate_section_part(section_name: str, subsection: Dict[str, str], context: str, code: Dict[str, str], inspiration: str, tips: str, example_learning: str) -> str:
@@ -160,7 +171,7 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
     Ensure this subsection is comprehensive and at least two paragraphs long.
     If discussing algorithms, consider using pseudo-code or algorithm environments for clarity.
     """
-    return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.", max_tokens=2000)
+    return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.")
 
 def add_citations(section: str, context: str, search_results: List[Dict], citation_areas: List[str]) -> Tuple[str, str]:
     examined_papers = []
@@ -189,7 +200,7 @@ def add_citations(section: str, context: str, search_results: List[Dict], citati
     Add a brief mention of how each cited paper relates to our work or supports our arguments.
     Aim to cite at least one paper for each focus area, if relevant papers are available.
     """
-    cited_section = get_response_from_llm(prompt, "You are an AI assistant tasked with adding citations to a research paper section.", max_tokens=3000)
+    cited_section = get_response_from_llm(prompt, "You are an AI assistant tasked with adding citations to a research paper section.")
     
     # Generate bibtex entries for the cited papers
     bibtex_entries = []
@@ -221,7 +232,7 @@ def refine_section(section_name: str, current_content: str, tips: str) -> str:
 
     Provide the refined section maintaining the LaTeX structure.
     """
-    return get_response_from_llm(prompt, "You are an AI assistant tasked with refining a research paper section.", max_tokens=4000)
+    return get_response_from_llm(prompt, "You are an AI assistant tasked with refining a research paper section.")
 
 def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
     full_text = "\n\n".join(paper.values())
@@ -237,7 +248,7 @@ def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
 
     Provide a list of any inconsistencies or issues found, along with suggested fixes.
     """
-    consistency_review = get_response_from_llm(prompt, "You are an AI assistant reviewing a research paper for consistency.", max_tokens=2000)
+    consistency_review = get_response_from_llm(prompt, "You are an AI assistant reviewing a research paper for consistency.")
     
     # Apply the suggested fixes
     for section, content in paper.items():
@@ -251,7 +262,7 @@ def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
 
         Provide the updated content with the necessary changes applied.
         """
-        paper[section] = get_response_from_llm(prompt, "You are an AI assistant improving the consistency of a research paper section.", max_tokens=4000)
+        paper[section] = get_response_from_llm(prompt, "You are an AI assistant improving the consistency of a research paper section.")
     
     return paper
 

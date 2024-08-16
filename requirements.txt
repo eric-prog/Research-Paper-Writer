@@ -1,0 +1,4 @@
+google-generativeai
+PyPDF2
+arxiv
+python-dotenv
