@@ -3,9 +3,10 @@ import json
 import re
 import google.generativeai as genai
 import PyPDF2
-import arxiv
 from typing import Dict, List, Tuple
 from dotenv import load_dotenv
+import time
+import random
 
 load_dotenv()
 
@@ -29,9 +30,72 @@ model = genai.GenerativeModel(
 CONTEXT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/context/context.txt"
 INSPIRATION_PDF_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers/1703.10593v7.pdf"
 OUTPUT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/output/paper.tex"
-LATEX_TEMPLATE_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/icml/example_paper.tex"
+LATEX_TEMPLATE_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/icml_example/example_paper.tex"
 EXAMPLE_PAPERS_DIR = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers"
 
+
+def generate_gemini(model, template, prompt):
+    import time
+    content = template + prompt
+
+    max_retries = 3
+    step = 30
+    delay = 30
+
+    for attempt in range(max_retries):
+        try:
+            chat_session = model.start_chat(history=[])
+            response = chat_session.send_message(content)
+            captions_content = response.text.strip()
+            return captions_content
+        except Exception as e:
+            print(f"Error on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay += step  # Exponential backoff
+            else:
+                print("Max retries reached. Returning None.")
+                return None
+
+    return None
+
+
+def parse_gemini_json(raw_output):
+    print(raw_output)
+    """
+    Parse the JSON output from the Gemini API.
+
+    Args:
+        raw_output (str): The raw output from the Gemini API.
+
+    Returns:
+        Optional[dict]: The parsed JSON output as a dictionary, or None if an error occurs.
+    """
+
+    try:
+        if "```json" in raw_output:
+            json_start = raw_output.index("```json") + 7
+            json_end = raw_output.rindex("```")
+            json_content = raw_output[json_start:json_end].strip()
+        else:
+            json_content = raw_output.strip()
+
+        # Remove any leading or trailing commas
+        json_content = json_content.strip(',')
+
+        # If the content starts with a key (e.g., "objects":), wrap it in curly braces
+        if json_content.strip().startswith('"') and ':' in json_content:
+            json_content = "{" + json_content + "}"
+
+        # Parse the JSON
+        parsed_json = json.loads(json_content)
+        
+        return parsed_json
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {str(e)}")
+        return None
+    
 def read_context(file_path: str) -> str:
     with open(file_path, 'r') as f:
         return f.read()
@@ -53,9 +117,7 @@ def parse_code(context: str) -> Dict[str, str]:
     return {f"Section_{i}": section.strip() for i, section in enumerate(sections)}
 
 def get_response_from_llm(prompt: str, system_message: str) -> str:
-    chat = model.start_chat(history=[])
-    response = chat.send_message(f"{system_message}\n\n{prompt}")
-    return response.text
+    return generate_gemini(model, system_message, prompt)
 
 def search_arxiv_papers(query: str, num_results: int = 5) -> List[Dict]:
     search = arxiv.Search(
@@ -136,11 +198,17 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     4. Potential areas where citations might be needed
 
     Aim for 3-5 subsections for most sections, but for longer sections like Methodology or Implementation, you can go up to 7-10 subsections.
-    
-    Provide the output as a JSON array of objects, each representing a subsection.
+
+    Provide the output as a valid JSON array of objects, each representing a subsection.
+    The JSON should be parseable by Python's json.loads() function.
+    Example format:
+    [
+        {{"title": "Subsection 1", "description": "...", "technical_details": "...", "citation_areas": ["..."]}}
+    ]
     """
     response = get_response_from_llm(prompt, "You are an AI assistant creating a detailed paper outline.")
-    return json.loads(response)
+    response = response.strip()
+    return parse_gemini_json(response)
 
 def generate_section_part(section_name: str, subsection: Dict[str, str], context: str, code: Dict[str, str], inspiration: str, tips: str, example_learning: str) -> str:
     prompt = f"""
@@ -173,46 +241,25 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
     """
     return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.")
 
-def add_citations(section: str, context: str, search_results: List[Dict], citation_areas: List[str]) -> Tuple[str, str]:
-    examined_papers = []
-    for paper in search_results:
-        examination = examine_paper(paper)
-        examined_papers.append(f"Title: {paper['title']}\nExamination: {examination}")
-    
-    citations = "\n\n".join(examined_papers)
-    
+def add_citations(section: str, context: str, citation_areas: List[str]) -> Tuple[str, str]:
     prompt = f"""
-    Add relevant citations to the following section:
+    Please find relevant citations and links, preferably from arXiv, that support the following section:
 
     {section}
 
     Based on this context:
     {context}
 
-    And these potential sources:
-    {citations}
-
     Focus on these areas for citations:
     {', '.join(citation_areas)}
 
-    Use \cite{{paperid}} for citations, where paperid is the last part of the arXiv ID (e.g., for arXiv:2104.08653, use \cite{{2104.08653}}).
-    Ensure citations are properly integrated into the text.
-    Add a brief mention of how each cited paper relates to our work or supports our arguments.
-    Aim to cite at least one paper for each focus area, if relevant papers are available.
+    Provide the citations in LaTeX format (e.g., \cite{{paperid}}) with a brief mention of how each cited paper relates to our work or supports our arguments.
     """
-    cited_section = get_response_from_llm(prompt, "You are an AI assistant tasked with adding citations to a research paper section.")
-    
-    # Generate bibtex entries for the cited papers
-    bibtex_entries = []
-    for paper in search_results:
-        bibtex_entries.append(f"""@article{{{paper['id'].split(':')[-1]},
-  title={{{paper['title']}}},
-  author={{{paper['authors']}}},
-  journal={{arXiv preprint arXiv:{paper['id']}}},
-  year={{{paper['published'].split('-')[0]}}}
-}}""")
-    
-    return cited_section, "\n\n".join(bibtex_entries)
+    cited_section = get_response_from_llm(prompt, "You are an AI assistant tasked with finding relevant citations.")
+
+    # Since we are no longer fetching papers from arXiv directly, we won't generate BibTeX entries here.
+    return cited_section, ""
+
 
 def refine_section(section_name: str, current_content: str, tips: str) -> str:
     prompt = f"""
@@ -293,9 +340,8 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
             section_content += f"\\subsection{{{subsection['title']}}}\n\n{part_content}\n\n"
         
         if section not in ["Title", "Abstract"]:
-            search_results = search_arxiv_papers(section + " " + context[:100])  # Use first 100 chars of context for better search
-            citation_areas = [sub['citation_areas'] for sub in outline if 'citation_areas' in sub]
-            section_content, bibtex_entries = add_citations(section_content, context, search_results, citation_areas)
+            citation_areas = [', '.join(sub['citation_areas']) for sub in outline if 'citation_areas' in sub]
+            section_content, bibtex_entries = add_citations(section_content, context, citation_areas)
             all_bibtex_entries.append(bibtex_entries)
         
         paper[section] = refine_section(section, section_content, tips)
