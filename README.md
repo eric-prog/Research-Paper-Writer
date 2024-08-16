@@ -2,6 +2,8 @@
 
 This project is an AI-powered tool that automatically generates research papers based on given code and context.
 
+Generating a full paper may take up for 30 minutes but at zero costs.
+
 ## Project Structure
 
 ```

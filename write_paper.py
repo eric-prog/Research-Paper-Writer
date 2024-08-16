@@ -311,6 +311,11 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
     for section, tips in sections.items():
         print(f"Generating {section} section...")
         outline = generate_detailed_outline(section, context, code, code_analysis)
+
+        if outline is None:  # Check if outline is None
+            print(f"Failed to generate outline for section: {section}. Skipping this section.")
+            continue  # Skip to the next section
+        
         section_content = ""
         for subsection in outline:
             print(f"  Generating subsection: {subsection['title']}")
