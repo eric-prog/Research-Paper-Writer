@@ -73,7 +73,6 @@ Research-Paper-Writer/
 - Automated research paper generation based on provided code/context
 - Utilizes the Gemini AI model for natural language generation
 - Incorporates example papers for learning LaTeX structure and formatting
-- Automatically searches and cites relevant papers from arXiv
 - Ensures consistency and coherence across the generated paper
 
 ## Dependencies
