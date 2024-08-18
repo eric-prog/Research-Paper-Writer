@@ -32,9 +32,9 @@ INSPIRATION_PDF_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-
 OUTPUT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/output/"
 LATEX_TEMPLATE_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/icml_example/example_paper.tex"
 EXAMPLE_PAPERS_DIR = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers"
+PERSON = "You are a PhD student studying AI and synthetic data processes and you're writing a novel paper which should include lots of information and details. No high-level. Be as techincal as you want, introduce symbols and heirarical structures mathmatics based on algorithms and topics too"
 
 def generate_gemini(model, template, prompt):
-    import time
     content = template + prompt
 
     max_retries = 3
@@ -60,7 +60,6 @@ def generate_gemini(model, template, prompt):
     return None
 
 def parse_gemini_json(raw_output):
-    print(raw_output)
     try:
         if "```json" in raw_output:
             json_start = raw_output.index("```json") + 7
@@ -106,6 +105,8 @@ def get_response_from_llm(prompt: str, system_message: str) -> str:
 
 def examine_paper(paper: Dict) -> str:
     prompt = f"""
+    {PERSON}
+    
     Examine the following paper:
     Title: {paper['title']}
     Authors: {paper['authors']}
@@ -136,6 +137,7 @@ def learn_from_examples() -> str:
 
 def analyze_code_structure(code: Dict[str, str]) -> str:
     prompt = f"""
+    {PERSON}
     Analyze the following code structure:
 
     {json.dumps(code, indent=2)}
@@ -148,6 +150,7 @@ def analyze_code_structure(code: Dict[str, str]) -> str:
 
 def generate_detailed_outline(section_name: str, context: str, code: Dict[str, str], code_analysis: str) -> List[Dict[str, str]]:
     prompt = f"""
+    {PERSON}
     Create a detailed outline for the {section_name} section of a research paper about the following code:
 
     Code Analysis:
@@ -160,14 +163,15 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     1. A title
     2. A brief description of what should be covered
     3. Any specific technical details or algorithms to be discussed
+    4. Challenges, comparisons with existing methods, and potential solutions
 
-    Aim for 3-5 subsections for most sections, but for longer sections like Methodology or Implementation, you can go up to 7-10 subsections.
+    Ensure that each subsection is detailed, aiming to fully explore the topic with examples, references, and deep analysis.
 
     Provide the output as a valid JSON array of objects, each representing a subsection.
     The JSON should be parseable by Python's json.loads() function.
     Example format:
     [
-        {{"title": "Subsection 1", "description": "...", "technical_details": "..."}}
+        {{"title": "Subsection 1", "description": "...", "technical_details": "...", "challenges": "...", "comparisons": "...", "solutions": "..."}}
     ]
     """
     response = get_response_from_llm(prompt, "You are an AI assistant creating a detailed paper outline.")
@@ -193,6 +197,8 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
 
     Subsection description: {subsection['description']}
     Technical details to cover: {subsection['technical_details']}
+    Challenges and comparisons: {subsection['challenges']}
+    Solutions and innovations: {subsection['solutions']}
     
     Base your writing on the following code and context:
     
@@ -213,12 +219,14 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
     
     Previous sections:
     {previous_sections}
+
+    {PERSON}
     
-    Provide a detailed analysis related to the specified subsection. Use appropriate technical language and LaTeX formatting.
+    Provide a detailed (should be a paragraph 3-4 lines MINIMUM), step-by-step analysis related to the specified subsection. Use appropriate technical language and LaTeX formatting.
     Include code snippets where relevant, using the \\begin{{lstlisting}} and \\end{{lstlisting}} environment.
-    Ensure this subsection is comprehensive and at least two paragraphs long.
+    Ensure this subsection is comprehensive and detailed, expanding on any complex ideas with examples and references.
     If discussing algorithms, consider using pseudo-code or algorithm environments for clarity.
-    Make sure to maintain consistency with the previously written sections.
+    Make sure to maintain consistency with the previously written sections and dynamically adjust the depth based on the content.
     """
     return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.")
 
@@ -244,9 +252,11 @@ def refine_section(section_name: str, current_content: str, tips: str, context: 
     - Technical accuracy and depth
     - Consistency with previously written sections
 
-    Provide the refined section maintaining the LaTeX structure.
+    DO NOT remove details or depth from the section.
+
+    After refining, review the section to ensure it covers the topic comprehensively. Expand any areas that may lack detail, and provide additional examples or comparisons if necessary.
     """
-    return get_response_from_llm(prompt, "You are an AI assistant tasked with refining a research paper section.")
+    return get_response_from_llm(prompt, "You are an AI assistant tasked with refining and expanding a research paper section.")
 
 def ensure_consistency(paper: Dict[str, str], context: str) -> Dict[str, str]:
     full_text = "\n\n".join(paper.values())
@@ -263,7 +273,7 @@ def ensure_consistency(paper: Dict[str, str], context: str) -> Dict[str, str]:
     Check that all mentioned concepts, algorithms, or results are properly introduced and explained.
     Verify that the abstract and conclusion accurately reflect the content of the paper.
 
-    Provide a list of any inconsistencies or issues found, along with suggested fixes.
+    After identifying inconsistencies, provide suggestions for improving the clarity, depth, and flow of the paper. If any section is lacking in detail, note it and suggest areas for expansion.
     """
     consistency_review = get_response_from_llm(prompt, "You are an AI assistant reviewing a research paper for consistency.")
     
@@ -280,7 +290,7 @@ def ensure_consistency(paper: Dict[str, str], context: str) -> Dict[str, str]:
         Context:
         {context}
 
-        Provide the updated content with the necessary changes applied.
+        Provide the updated content with the necessary changes applied. Ensure that the section is not only consistent but also detailed and aligned with the overall paper objectives.
         """
         paper[section] = get_response_from_llm(prompt, "You are an AI assistant improving the consistency of a research paper section.")
     
@@ -307,11 +317,11 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
         "Abstract": "Summarize the entire paper, including the main purpose and functionality of the code.",
         "Introduction": "Introduce the research topic, problem, and objectives. Explain the high-level purpose of the code.",
         "Background": "Provide necessary background information for understanding the code and its context.",
-        "Methodology": "Describe the approach and design principles used in the code.",
-        "Implementation": "Detail the implementation of the code, including key algorithms and data structures.",
-        "Results": "Present the outcomes or performance of the code, if applicable.",
-        "Discussion": "Interpret the results, discuss implications, and compare with existing approaches.",
-        "Conclusion": "Summarize the key points and provide closing thoughts on the significance of the code."
+        "Methodology": "Describe the approach and design principles used in the code, with specific focus on technical details, challenges, and comparisons.",
+        "Implementation": "Detail the implementation of the code, including key algorithms, data structures, and any innovations introduced.",
+        "Results": "Present the outcomes or performance of the code, including quantitative metrics, qualitative assessments, and comparisons with other approaches.",
+        "Discussion": "Interpret the results, discuss implications, compare with existing approaches, and explore potential improvements.",
+        "Conclusion": "Summarize the key points, provide closing thoughts on the significance of the code, and suggest future research directions."
     }
     
     paper = {}
