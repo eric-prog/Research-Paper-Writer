@@ -1,0 +1,202 @@
+## Simverse: A Novel Framework for Synthetic Video Generation from Natural Language Prompts
+
+**Abstract:** This paper introduces Simverse, a novel framework for generating synthetic videos directly from natural language prompts. Simverse leverages a custom-trained large language model (LLM) to translate prompts into structured JSON representations, which guide a distributed rendering pipeline based on Blender. This approach enables users to create complex and visually compelling videos with minimal technical expertise. We demonstrate the effectiveness of Simverse through comparisons with SceneCrafter, a state-of-the-art synthetic video generation system developed by DeepMind.
+
+**1. Introduction:**
+
+Synthetic video generation has emerged as a powerful tool for various applications, including animation, education, and entertainment. However, existing methods often require significant technical expertise and manual effort. Simverse aims to simplify this process by enabling users to generate videos directly from natural language prompts.
+
+**2. System Architecture:**
+
+Simverse consists of four key modules:
+
+**2.1 Prompt Processing:**
+
+Simverse utilizes a custom-trained LLM, referred to as the "LLM Rewriter," to translate user prompts into structured JSON representations. The LLM Rewriter is trained on a massive dataset of text-video pairs, allowing it to understand the semantic relationships between language and visual concepts. The JSON representation serves as a standardized blueprint for the subsequent modules, defining scene objects, properties, camera settings, animation, and post-processing effects. 
+
+**2.2 Scene Generation:**
+
+The scene generation module assembles the virtual environment within Blender using the structured JSON representation. This module leverages the semantic understanding of the prompt to select appropriate objects, materials, and lighting conditions. It can also access a database of pre-existing 3D models and textures to enhance the realism and diversity of the generated scenes.
+
+**2.3 Camera Control:**
+
+The camera control module determines the camera's position, orientation, and movement within the scene based on the prompt's instructions. It interprets the prompt's instructions regarding camera angle, framing, and animation, translating them into camera parameters and keyframes.
+
+**2.4 Batch Rendering and Distribution:**
+
+Simverse utilizes a batch rendering module to efficiently distribute rendering tasks across multiple processors or cloud-based compute resources. This module leverages advanced rendering techniques to generate high-quality video frames at scale, significantly reducing the time required for video generation. The distribution module handles the final distribution of the generated videos, facilitating seamless integration with various platforms and workflows.
+
+**3. Innovative Aspects:**
+
+Simverse introduces several innovative aspects:
+
+* **One-Shot Prompt to Video:** Simverse enables users to directly generate videos from natural language prompts without the need for intermediate steps or specialized software.
+* **LLM Rewriter:** The custom-trained LLM Rewriter allows Simverse to understand the nuances of natural language and translate them into actionable instructions for scene generation.
+* **Distributed Rendering Pipeline:** Simverse leverages a distributed rendering pipeline to accelerate video generation, making it more efficient for large-scale projects.
+* **Integration with Blender:** Simverse seamlessly integrates with Blender, a powerful open-source 3D creation suite, providing access to its extensive capabilities for modeling, texturing, lighting, and animation.
+* **ChromaDB Integration:** Simverse utilizes ChromaDB, a vector database, to efficiently retrieve relevant assets based on the user's prompt. This enables Simverse to quickly find suitable objects, HDRI backgrounds, and textures for the generated scene.
+
+**4. Comparison with SceneCrafter:**
+
+Simverse offers several advantages over SceneCrafter, a state-of-the-art synthetic video generation system developed by DeepMind:
+
+* **One-Shot Prompt to Video:** Unlike SceneCrafter, which requires multiple prompts for different aspects of video generation, Simverse allows users to generate videos from a single natural language prompt.
+* **LLM Rewriter:** Simverse utilizes a custom-trained LLM Rewriter, which provides a more nuanced understanding of natural language compared to the text-to-code translation approach employed by SceneCrafter.
+* **Integration with Blender:** Simverse's integration with Blender provides access to a wider range of 3D modeling and animation features, offering greater flexibility and control over the generated videos.
+
+**5. Evaluation:**
+
+We evaluated Simverse by generating videos from a diverse set of natural language prompts. We compared the generated videos with those produced by SceneCrafter, focusing on visual quality, coherence, and adherence to the user's intent. Our results demonstrate that Simverse consistently generates videos that are more visually appealing, coherent, and closer to the user's intended outcome.
+
+**6. Conclusion:**
+
+Simverse represents a significant advancement in synthetic video generation by enabling users to create videos directly from natural language prompts. Its innovative combination of an LLM Rewriter, a distributed rendering pipeline, and integration with Blender offers a user-friendly and powerful solution for creating visually compelling videos. Future research will focus on expanding Simverse's capabilities by incorporating more advanced AI techniques for scene generation and animation, as well as exploring applications in diverse domains.
+
+**7. Ethical Implications:**
+
+The ability to generate realistic synthetic videos raises significant ethical concerns. It is crucial to consider the potential misuse of this technology, such as creating deepfakes or disseminating misinformation. We believe that responsible development and deployment of synthetic video generation technologies require careful consideration of these ethical implications.
+
+**8. Appendix: Example JSON Representation:**
+
+```json
+{
+  "index": 0,
+  "objects_caption": "Objects in the scene:   The camera pans alongside Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software., capturing every move. The Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software. shifts to the right at quickly 0.29 each second.",
+  "objects": [
+    {
+      "name": "Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software.",
+      "uid": "099c5106369e4e7db70876c320e9a634",
+      "description": "Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software.",
+      "placement": 4,
+      "from": "cap3d",
+      "scale": {
+        "factor": 1.5,
+        "name": "medium-large",
+        "name_synonym": "moderate-large"
+      },
+      "transformed_position": [
+        0,
+        0
+      ],
+      "movement": {
+        "direction": "right",
+        "speed": 0.2937823858968299
+      },
+      "camera_follow": {
+        "follow": true
+      },
+      "relationships": []
+    }
+  ],
+  "background_caption": "Scene background: The landscape is Brown Photostudio 07.",
+  "background": {
+    "name": "Brown Photostudio 07",
+    "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/8k/brown_photostudio_07_8k.hdr",
+    "id": "brown_photostudio_07",
+    "from": "hdri_data"
+  },
+  "orientation_caption": "Camera orientation: Direct the camera far right front, set tilt to mildly downward.",
+  "orientation": {
+    "yaw": 279,
+    "pitch": 11
+  },
+  "framing_caption": "Camera framing: Full perspective Set the fov of the camera to 57 degrees. (32.00 mm focal length)",
+  "framing": {
+    "fov": 57,
+    "coverage_factor": 2.0317826794817835,
+    "name": "wide"
+  },
+  "animation_caption": "Camera animation: The scene is rendered with a moderate animation speed of 83%.",
+  "animation": {
+    "name": "pan_right",
+    "keyframes": [
+      {
+        "CameraAnimationPivot": {
+          "position": [
+            0,
+            1.5,
+            0
+          ]
+        }
+      },
+      {
+        "CameraAnimationPivot": {
+          "position": [
+            0,
+            -0.5,
+            0
+          ]
+        }
+      }
+    ],
+    "speed_factor": 0.827956962205405
+  },
+  "stage_caption": "Scene stage: The background is Brown Photostudio. The flooring material is Medieval Blocks.",
+  "stage": {
+    "material": {
+      "name": "Medieval Blocks 02",
+      "maps": {
+        "Diffuse": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_diff_4k.jpg",
+        "nor_dx": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_nor_dx_4k.jpg",
+        "nor_gl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_nor_gl_4k.jpg",
+        "Bump": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_bump_4k.jpg",
+        "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_arm_4k.jpg",
+        "AO": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_ao_4k.jpg",
+        "Displacement": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_disp_4k.jpg",
+        "Rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_rough_4k.jpg",
+        "spec": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/4k/medieval_blocks_02/medieval_blocks_02_spec_4k.jpg"
+      }
+    },
+    "uv_scale": [
+      0.8106143878735454,
+      0.8795350602746594
+    ],
+    "uv_rotation": 233.95839760062836
+  },
+  "postprocessing_caption": "Post-processing effects: No screen-space ray tracing is used in the scene.",
+  "postprocessing": {
+    "bloom": {
+      "threshold": 0.863482444180965,
+      "intensity": 0.2204406220406967,
+      "radius": 6.303391154883179,
+      "type": "medium"
+    },
+    "ssao": {
+      "distance": 0.9751279388798354,
+      "factor": 0.006498759678061017,
+      "type": "none"
+    },
+    "ssrr": {
+      "max_roughness": 0.8058192518328079,
+      "thickness": 3.505790005191723,
+      "type": "none"
+    },
+    "motionblur": {
+      "shutter_speed": 0.3402505165179919,
+      "type": "medium"
+    }
+  },
+  "caption": "Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software. = Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software.  The camera pans alongside Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software., capturing every move. The Mario Bros model compatible with 3ds Max, Maya, Blender, and other modeling and animation software. shifts to the right at quickly 0.29 each second. Direct the camera far right front, set tilt to mildly downward. Full perspective Set the fov of the camera to 57 degrees. (32.00 mm focal length) No screen-space ray tracing is used in the scene. The background is Brown Photostudio. The flooring material is Medieval Blocks. The scene is rendered with a moderate animation speed of 83%."
+}
+```
+
+**References:**
+
+* [SceneCrafter](https://arxiv.org/abs/2307.03752)
+* [Objaverse](https://huggingface.co/datasets/allenai/objaverse)
+* [Blender](https://www.blender.org/)
+* [ChromaDB](https://www.chromadb.com/)
+* [PolyHaven](https://polyhaven.com/)
+
+**Contributions:**
+
+* **Eric Sheen:** Designed and implemented the Simverse framework, conducted experiments, and wrote the paper.
+* **[Other contributors]:** Contributed to the development and evaluation of Simverse.
+
+**Acknowledgements:**
+
+We would like to thank [acknowledgements] for their valuable contributions to this project.
+
+**Disclaimer:**
+
+The views and opinions expressed in this paper are solely those of the authors and do not necessarily reflect the views of any organization or affiliation.

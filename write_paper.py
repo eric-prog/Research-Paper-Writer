@@ -29,10 +29,9 @@ model = genai.GenerativeModel(
 # Hardcoded paths
 CONTEXT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/context/context.txt"
 INSPIRATION_PDF_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers/1703.10593v7.pdf"
-OUTPUT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/output/paper.tex"
+OUTPUT_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/output/"
 LATEX_TEMPLATE_PATH = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/icml_example/example_paper.tex"
 EXAMPLE_PAPERS_DIR = "/Users/ericsheen/Desktop/DeepAI_Research/Research-Paper-Writer/example_papers"
-
 
 def generate_gemini(model, template, prompt):
     import time
@@ -60,19 +59,8 @@ def generate_gemini(model, template, prompt):
 
     return None
 
-
 def parse_gemini_json(raw_output):
     print(raw_output)
-    """
-    Parse the JSON output from the Gemini API.
-
-    Args:
-        raw_output (str): The raw output from the Gemini API.
-
-    Returns:
-        Optional[dict]: The parsed JSON output as a dictionary, or None if an error occurs.
-    """
-
     try:
         if "```json" in raw_output:
             json_start = raw_output.index("```json") + 7
@@ -81,21 +69,18 @@ def parse_gemini_json(raw_output):
         else:
             json_content = raw_output.strip()
 
-        # Remove any leading or trailing commas
         json_content = json_content.strip(',')
 
-        # If the content starts with a key (e.g., "objects":), wrap it in curly braces
         if json_content.strip().startswith('"') and ':' in json_content:
             json_content = "{" + json_content + "}"
 
-        # Parse the JSON
         parsed_json = json.loads(json_content)
         
         return parsed_json
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON: {str(e)}")
         return None
-    
+
 def read_context(file_path: str) -> str:
     with open(file_path, 'r') as f:
         return f.read()
@@ -118,26 +103,6 @@ def parse_code(context: str) -> Dict[str, str]:
 
 def get_response_from_llm(prompt: str, system_message: str) -> str:
     return generate_gemini(model, system_message, prompt)
-
-def search_arxiv_papers(query: str, num_results: int = 5) -> List[Dict]:
-    search = arxiv.Search(
-        query=query,
-        max_results=num_results,
-        sort_by=arxiv.SortCriterion.Relevance
-    )
-    
-    results = []
-    for paper in search.results():
-        results.append({
-            "title": paper.title,
-            "authors": ", ".join(author.name for author in paper.authors),
-            "abstract": paper.summary,
-            "url": paper.pdf_url,
-            "published": paper.published.strftime("%Y-%m-%d"),
-            "id": paper.get_short_id()
-        })
-    
-    return results
 
 def examine_paper(paper: Dict) -> str:
     prompt = f"""
@@ -209,7 +174,20 @@ def generate_detailed_outline(section_name: str, context: str, code: Dict[str, s
     response = response.strip()
     return parse_gemini_json(response)
 
-def generate_section_part(section_name: str, subsection: Dict[str, str], context: str, code: Dict[str, str], inspiration: str, tips: str, example_learning: str) -> str:
+def generate_paper_summary(sections: List[str]) -> str:
+    summary = "Paper Structure:\n"
+    for section in sections:
+        filename = f"{section.lower().replace(' ', '_')}.txt"
+        filepath = os.path.join(OUTPUT_PATH, filename)
+        try:
+            with open(filepath, 'r') as f:
+                content = f.read()
+                summary += f"- {section}: {content[:100]}...\n"  # First 100 characters as a brief summary
+        except FileNotFoundError:
+            summary += f"- {section}: Not yet written\n"
+    return summary
+
+def generate_section_part(section_name: str, subsection: Dict[str, str], context: str, code: Dict[str, str], inspiration: str, tips: str, example_learning: str, previous_sections: str) -> str:
     prompt = f"""
     Write the subsection "{subsection['title']}" of the {section_name} section of a research paper.
 
@@ -233,15 +211,18 @@ def generate_section_part(section_name: str, subsection: Dict[str, str], context
     Learned from examples:
     {example_learning}
     
+    Previous sections:
+    {previous_sections}
+    
     Provide a detailed analysis related to the specified subsection. Use appropriate technical language and LaTeX formatting.
     Include code snippets where relevant, using the \\begin{{lstlisting}} and \\end{{lstlisting}} environment.
     Ensure this subsection is comprehensive and at least two paragraphs long.
     If discussing algorithms, consider using pseudo-code or algorithm environments for clarity.
+    Make sure to maintain consistency with the previously written sections.
     """
     return get_response_from_llm(prompt, "You are an AI assistant writing a detailed subsection of a technical research paper.")
 
-
-def refine_section(section_name: str, current_content: str, tips: str) -> str:
+def refine_section(section_name: str, current_content: str, tips: str, context: str, previous_sections: str) -> str:
     prompt = f"""
     Refine the following {section_name} section:
 
@@ -250,22 +231,32 @@ def refine_section(section_name: str, current_content: str, tips: str) -> str:
     Consider these tips:
     {tips}
 
+    Context:
+    {context}
+
+    Previous sections:
+    {previous_sections}
+
     Pay particular attention to:
     - LaTeX syntax and formatting
     - Clarity and conciseness
     - Logical flow of ideas
     - Technical accuracy and depth
+    - Consistency with previously written sections
 
     Provide the refined section maintaining the LaTeX structure.
     """
     return get_response_from_llm(prompt, "You are an AI assistant tasked with refining a research paper section.")
 
-def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
+def ensure_consistency(paper: Dict[str, str], context: str) -> Dict[str, str]:
     full_text = "\n\n".join(paper.values())
     prompt = f"""
     Review the following research paper for consistency and coherence:
 
     {full_text}
+
+    Context:
+    {context}
 
     Identify any inconsistencies in terminology, notation, or arguments across sections.
     Ensure that the paper flows logically from introduction to conclusion.
@@ -286,11 +277,27 @@ def ensure_consistency(paper: Dict[str, str]) -> Dict[str, str]:
         Original content:
         {content}
 
+        Context:
+        {context}
+
         Provide the updated content with the necessary changes applied.
         """
         paper[section] = get_response_from_llm(prompt, "You are an AI assistant improving the consistency of a research paper section.")
     
     return paper
+
+def write_section_to_file(section_name: str, content: str):
+    filename = f"{section_name.lower().replace(' ', '_')}.txt"
+    filepath = os.path.join(OUTPUT_PATH, filename)
+    with open(filepath, 'w') as f:
+        f.write(content)
+    print(f"Section '{section_name}' written to {filepath}")
+
+def read_section_from_file(section_name: str) -> str:
+    filename = f"{section_name.lower().replace(' ', '_')}.txt"
+    filepath = os.path.join(OUTPUT_PATH, filename)
+    with open(filepath, 'r') as f:
+        return f.read()
 
 def perform_writeup(context: str, inspiration: str, template: str, example_learning: str) -> Dict[str, str]:
     code = parse_code(context)
@@ -308,29 +315,37 @@ def perform_writeup(context: str, inspiration: str, template: str, example_learn
     }
     
     paper = {}
+    previous_sections = ""
     for section, tips in sections.items():
         print(f"Generating {section} section...")
         outline = generate_detailed_outline(section, context, code, code_analysis)
 
-        if outline is None:  # Check if outline is None
+        if outline is None:
             print(f"Failed to generate outline for section: {section}. Skipping this section.")
-            continue  # Skip to the next section
-        
+            continue
+
         section_content = ""
         for subsection in outline:
             print(f"  Generating subsection: {subsection['title']}")
-            part_content = generate_section_part(section, subsection, context, code, inspiration, tips, example_learning)
+            part_content = generate_section_part(section, subsection, context, code, inspiration, tips, example_learning, previous_sections)
             section_content += f"\\subsection{{{subsection['title']}}}\n\n{part_content}\n\n"
 
-        paper[section] = refine_section(section, section_content, tips)
-    
-    paper = ensure_consistency(paper)
+        refined_content = refine_section(section, section_content, tips, context, previous_sections)
+        write_section_to_file(section, refined_content)
+        paper[section] = refined_content
+        previous_sections += f"\n\n{section}:\n{refined_content}"
+
+    paper = ensure_consistency(paper, context)
+    for section, content in paper.items():
+        write_section_to_file(section, content)
+
     return paper
 
 def compile_latex(paper: Dict[str, str], template: str, output_file: str):
     for section, content in paper.items():
         placeholder = f"%{section.upper()}_PLACEHOLDER"
-        template = template.replace(placeholder, content)
+        section_content = read_section_from_file(section)
+        template = template.replace(placeholder, section_content)
     
     with open(output_file, 'w') as f:
         f.write(template)
@@ -348,7 +363,8 @@ def main():
     template = read_latex_template(LATEX_TEMPLATE_PATH)
     example_learning = learn_from_examples()
     paper = perform_writeup(context, inspiration, template, example_learning)
-    compile_latex(paper, template, OUTPUT_PATH)
+    output_file = os.path.join(OUTPUT_PATH, "paper.tex")
+    compile_latex(paper, template, output_file)
 
 if __name__ == "__main__":
     main()
